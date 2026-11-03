@@ -73,6 +73,8 @@ export const TOOL_DEFINITIONS = [
   {name:'douyin_media_status',description:'读取可选音频能力的开关、后端及依赖状态；默认关闭，不返回任何密钥。',parameters:empty()},
   {name:'douyin_listen',description:'在音频开关开启且刷视频时间允许时，录取当前抖音视频最多10秒实际音轨并转写。不会录麦克风或其他程序声音。',parameters:{type:'object',properties:{seconds:{type:'number',minimum:1,maximum:10,description:'录取秒数，默认8，范围1至10。'}},additionalProperties:false}},
   {name:'douyin_forward_video',description:'为用户明确选择的好友转发当前作品或公开作品链接。实际发送由本机转发按钮的可信授权入口执行，自动回复和普通视频模型不能发起转发。',parameters:{type:'object',properties:{recipientId:{type:'string',minLength:1,maxLength:500},url:{type:'string',maxLength:1000}},required:['recipientId'],additionalProperties:false}},
+  {name:'douyin_share_video',description:'在本机主动发送总开关打开，且通过允许名单、每日分享上限和最小间隔后，用抖音官方分享面板把指定作品发给指定好友或会话。recipient 可以是会话 ID、抖音号、sec_uid 或主页链接。url 与 videoId 可省略，省略时使用当前正在看的作品。总开关默认关闭。结果未确认时不要用同一对象和同一作品再次调用。',parameters:{type:'object',properties:{recipient:{type:'string',minLength:1,maxLength:500,description:'会话 ID、抖音号、sec_uid 或 https://www.douyin.com/user/ 主页链接。'},url:{type:'string',maxLength:1000,description:'可选，https://www.douyin.com/video/作品ID。'},videoId:{type:'string',maxLength:64,description:'可选作品 ID。与 url 同时给出时必须一致。'}},required:['recipient'],additionalProperties:false}},
+  {name:'douyin_send_message',description:'在本机主动发送总开关打开，且通过允许名单、每日私信上限和最小间隔后，给指定的人发一条文字私信。已有会话用 recipientId；没聊过则用 douyinId、profileUrl 或 secUid 打开主页再点私信。四种收件人字段只能填一个。总开关默认关闭。必须等工具确认发出；结果未确认时不要重发同一条。',parameters:{type:'object',properties:{text:{type:'string',minLength:1,maxLength:1000,description:'要发送的文字，1 到 1000 字。'},recipientId:{type:'string',maxLength:500,description:'已有会话的精确 ID。'},douyinId:{type:'string',maxLength:24,description:'对方抖音号。'},profileUrl:{type:'string',maxLength:500,description:'https://www.douyin.com/user/ 主页链接。'},secUid:{type:'string',maxLength:200,description:'对方 sec_uid。'}},required:['text'],additionalProperties:false}},
   {name:'douyin_persona_status',description:'读取软件与插件共用的最新大肥鱼人格卡、自己的兴趣和有来源的观看记录。人格与记忆不授予额外工具权限。',parameters:empty()},
   {name:'douyin_interest_record',description:'根据真实观看进度、持续停留、跳过和已确认互动更新大肥鱼自己的兴趣。画面主题仅为提案，没有行为依据保持待观察；必须使用宿主证据ID，不得把用户偏好、私信或QQ内容写成自己的兴趣。',parameters:{type:'object',properties:{evidenceId:{type:'string',maxLength:90},topic:{type:'string',maxLength:80},signal:{type:'string',enum:['like','dislike','neutral']},reflection:{type:'string',maxLength:600}},required:['evidenceId','topic','signal','reflection'],additionalProperties:false}},
   {name:'douyin_watch_status',description:'读取两入口共用的自主观看状态、今日观看时间、请求次数和停止原因。不会开始观看。',parameters:empty()},
@@ -112,6 +114,17 @@ export function validateToolArguments(definition, args) {
   if (definition.name === 'douyin_interest_record' && (!args.evidenceId.trim() || !args.topic.trim() || !args.reflection.trim() || !['like','dislike','neutral'].includes(args.signal))) throw new TypeError('兴趣更新需要真实证据、主题、有效倾向与简短理由。');
   if(definition.name==='douyin_chat_observe' && !/^msg:[a-f0-9]{64}$/.test(args.messageId)) throw new TypeError('需要已读取的精确消息ID。');
   if(definition.name==='douyin_forward_video' && args.url!==undefined && !/^https:\/\/(?:www\.)?douyin\.com\/video\/\d+\/?(?:\?[^#]*)?(?:#.*)?$/.test(args.url)) throw new TypeError('转发链接必须是抖音公开video链接。');
+  if (definition.name === 'douyin_share_video') {
+    if (typeof args.recipient !== 'string' || args.recipient.trim().length === 0) throw new TypeError('参数 recipient 不能为空。');
+    if (args.url !== undefined && !/^https:\/\/(?:www\.)?douyin\.com\/video\/\d+\/?(?:\?[^#]*)?(?:#.*)?$/.test(args.url)) throw new TypeError('作品链接必须是抖音公开 video 链接。');
+    if (args.videoId !== undefined && !/^\d{1,30}$/.test(args.videoId)) throw new TypeError('作品 ID 必须是数字。');
+    if (args.url !== undefined && args.videoId !== undefined && /\/video\/(\d+)/.exec(args.url)?.[1] !== args.videoId) throw new TypeError('链接与作品 ID 不一致。');
+  }
+  if (definition.name === 'douyin_send_message') {
+    if (typeof args.text !== 'string' || args.text.trim().length === 0) throw new TypeError('参数 text 不能为空。');
+    const present = ['recipientId', 'douyinId', 'profileUrl', 'secUid'].filter(key => args[key] !== undefined && String(args[key]).trim() !== '');
+    if (present.length !== 1) throw new TypeError('主动私信需要且只能指定一种收件人。');
+  }
   if (definition.name === 'douyin_open_video') {
     if (args.index === undefined && args.url === undefined) throw new TypeError('打开作品需要 index 或 url。');
     if (args.index !== undefined && args.index < 0) throw new RangeError('搜索结果 index 不能为负数。');

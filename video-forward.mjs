@@ -178,8 +178,14 @@ export class VideoForwarder {
     this.policyFile = path.join(stateDir, 'chat-policy.json');
     this.receiptsFile = path.join(stateDir, 'video-forward-receipts.json');
     this.guardFile = path.join(stateDir, 'video-forward.guard');
+    this.directedContact = null;
+    this.skipWatchWindow = false;
   }
   policyContact(recipientId) {
+    if (this.directedContact) {
+      if (this.directedContact.id !== recipientId || !hasStableConversationIdentity(this.directedContact)) throw Object.assign(new Error('主动分享的稳定身份不可用，未转发。'), { code: 'FORWARD_IDENTITY_REQUIRED', stage: 'recipient' });
+      return this.directedContact;
+    }
     if (typeof recipientId !== 'string' || !/^conv:[a-f0-9]{64}$/.test(recipientId)) throw new TypeError('请在本机选择已核对的联系人。');
     let policy; try { policy = JSON.parse(fs.readFileSync(this.policyFile, 'utf8')); } catch { throw new Error('本机联系人白名单不可读，未转发。'); }
     if (!Array.isArray(policy.allowlist) || new Set(policy.allowlist.map(item => item?.id)).size !== policy.allowlist.length || policy.allowlist.some(item => !isStoredContactAuthorized(item))) throw new Error('本机会话名单包含损坏或未授权的记录，未转发。');
@@ -190,6 +196,7 @@ export class VideoForwarder {
   }
   async gate(signal) {
     stop(signal);
+    if (this.skipWatchWindow) return { allowed: true };
     const decision = this.videoLimits.beforeAction(this.source, 'douyin_forward_video');
     if (!decision.allowed) { await this.controller.pauseForLimits?.(); throw new Error(decision.reason || '当前时间不允许转发视频。'); }
     return decision;
@@ -205,6 +212,18 @@ export class VideoForwarder {
     return () => { try { const owner = JSON.parse(fs.readFileSync(this.guardFile, 'utf8')); if (owner.pid === process.pid && owner.token === token) fs.unlinkSync(this.guardFile); } catch {} };
   }
   async prepareContact(recipientId, signal, { backgroundOnly = false } = {}) {
+    if (this.directedContact) {
+      const stored = this.policyContact(recipientId);
+      if (stored.panelOnly === true) return stored;
+      const list = await this.chatBrowser.listContacts({ signal, verifyFollowing: false, backgroundOnly });
+      if (list.blocked || list.loginRequired || list.verificationRequired) throw new Error('联系人关系核对需要登录或验证，未转发。');
+      const contacts = (list.contacts || []).filter(item => item.id === recipientId);
+      const live = contacts[0];
+      if (contacts.length !== 1 || !hasStableConversationIdentity(live) || live.isGroup !== stored.isGroup || live.identityKind !== stored.identityKind || live.identityHash !== stored.identityHash || live.identityBinding !== stored.identityBinding) throw new Error('收件人的当前稳定身份与主动分享目标不一致，未转发。');
+      const contact = this.chatBrowser.contacts.get(recipientId);
+      if (!contact || !hasStableConversationIdentity(contact) || contact.identityBinding !== stored.identityBinding || contact.isGroup !== stored.isGroup) throw new Error('收件人的当前稳定身份不可核对，未转发。');
+      return contact;
+    }
     const stored = this.policyContact(recipientId);
     const list = await this.chatBrowser.listContacts({ signal, verifyFollowing: !backgroundOnly, backgroundOnly });
     if (list.blocked || list.loginRequired || list.verificationRequired) throw new Error('联系人关系核对需要登录或验证，未转发。');
@@ -252,8 +271,17 @@ export class VideoForwarder {
     return false;
   }
   async forward(input = {}, { signal, humanAuthorized = false } = {}) {
+    if (this.directedContact) throw new Error('另一项主动分享尚未结束，未转发。');
     if (humanAuthorized !== true) return { confirmed: false, deliveryUncertain: false, humanActionRequired: true, reason: '请在本机转发界面选择作品和好友，再点击转发。' };
     return this.#forward(input, { signal });
+  }
+  async forwardDirected(input = {}, { signal, contact } = {}) {
+    if (this.directedContact) throw new Error('另一项主动分享尚未结束，未转发。');
+    if (!contact || contact.id !== input?.recipientId || !hasStableConversationIdentity(contact)) throw new TypeError('主动分享需要与收件人一致的稳定身份。');
+    this.directedContact = contact;
+    this.skipWatchWindow = true;
+    try { return await this.#forward(input, { signal }); }
+    finally { this.directedContact = null; this.skipWatchWindow = false; }
   }
   async forwardAutonomous({ recipientId, expectedVideoId, ...extra } = {}, { signal, authorize, autonomousRunId } = {}) {
     if (typeof authorize !== 'function') return { confirmed: false, deliveryUncertain: false, reason: '自主分享缺少可信的本机许可检查，未发送。' };
@@ -297,11 +325,19 @@ export class VideoForwarder {
       stage = 'contact-identity';
       const contact = await this.prepareContact(recipientId, signal, { backgroundOnly: Boolean(authorize) });
       stage = 'conversation-baseline';
-      const before = await this.chatBrowser.readConversation(recipientId, { allowed: true, signal, backgroundOnly: Boolean(authorize) });
-      if (before.blocked || before.conversation?.id !== recipientId) throw new Error('指定会话的转发前快照未通过身份核对。');
-      if (!Array.isArray(before.messages) || before.messages.length > 2000) throw new Error('点击前消息窗口超出收据基线边界，未发送。');
-      const beforeMessages = before.messages.map(message => ({ id: message?.id })), baselineCapturedAt = new Date().toISOString();
-      const beforeIds = new Set(beforeMessages.map(message => message.id));
+      let beforeMessages, baselineCapturedAt, beforeIds;
+      if (this.directedContact?.panelOnly === true) {
+        beforeMessages = [];
+        baselineCapturedAt = new Date().toISOString();
+        beforeIds = new Set();
+      } else {
+        const before = await this.chatBrowser.readConversation(recipientId, { allowed: true, signal, backgroundOnly: Boolean(authorize) });
+        if (before.blocked || before.conversation?.id !== recipientId) throw new Error('指定会话的转发前快照未通过身份核对。');
+        if (!Array.isArray(before.messages) || before.messages.length > 2000) throw new Error('点击前消息窗口超出收据基线边界，未发送。');
+        beforeMessages = before.messages.map(message => ({ id: message?.id }));
+        baselineCapturedAt = new Date().toISOString();
+        beforeIds = new Set(beforeMessages.map(message => message.id));
+      }
       const newCardIds = new Set();
       const sendResult = await this.controller.withPage(async page => {
         stage = 'video';

@@ -446,6 +446,15 @@ export class BrowserController {
   limits() { return this.videoLimits ??= new VideoLimits(); }
   getMediaAdapter() { return this.mediaPromise??=import('./media/index.mjs?v=10').then(({MediaAdapter})=>new MediaAdapter()); }
   getForwarder() { return this.forwarderPromise??=import('./video-forward.mjs?v=10').then(({VideoForwarder})=>new VideoForwarder({videoLimits:this.limits(),source:this.source==='dsh'?'dsh':'api'})); }
+  getProactiveSend() {
+    this.proactivePromise ??= import('./proactive-send.mjs').then(({ ProactiveOutreach }) => new ProactiveOutreach({
+      stateDir: this.limits().stateDir,
+      source: this.source === 'dsh' ? 'dsh' : 'api',
+      getForwarder: () => this.getForwarder(),
+      getChat: () => this.getChatService(),
+    })).catch(error => { this.proactivePromise = null; throw error; });
+    return this.proactivePromise;
+  }
   watchVideoLimits() {
     if (!this.limitsEnabled || this.cancelLimitsWatch) return;
     this.cancelLimitsWatch = this.limits().watch({ sources:[this.source], pause:()=>this.pauseForLimits() });
@@ -751,6 +760,11 @@ export class BrowserController {
       if(name==='douyin_forward_video') {
         if(humanAuthorized!==true) return {sent:false,requiresUserAction:true,note:'请在本机控制台选择这位好友并点击转发；此工具不会代替人类按钮授权。',recipientId:args.recipientId,url:args.url??null};
         return (await this.getForwarder()).forward(args,{signal,humanAuthorized:true});
+      }
+      if (name === 'douyin_share_video' || name === 'douyin_send_message') {
+        const proactive = await this.getProactiveSend();
+        aborted(signal);
+        return name === 'douyin_share_video' ? proactive.share(args, { signal }) : proactive.sendMessage(args, { signal });
       }
       if (name==='douyin_recall') return this.store().recall({query:args.query??'',limit:args.limit??10});
       if (name==='douyin_persona_status') return this.getPersonaMemory().snapshot();

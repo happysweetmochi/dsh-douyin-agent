@@ -244,10 +244,10 @@ test('当前产品 manifest 与 client 在真实 SDK 图中可发现并先加载
   await f.ctx.loader.create({ id: 'douyin-browser', name: productUri }); await f.ctx.loader.await();
   assert.equal(f.ctx.get('tools'), undefined, '不提供 tools，因此本测试不执行产品插件或创建浏览器控制器');
   const registryFiber = f.ctx.plugin(ClientModuleRegistry); await registryFiber.await(); const registry = f.ctx.get('clientModules');
-  const graph = registry.graph(), row = graph.entries.find(item => item.id === 'dsh-douyin-browser-local'); assert.ok(row);
+  const graph = registry.graph(), row = graph.entries.find(item => item.id === 'dsh-douyin-browser-feiyu'); assert.ok(row);
   assert.deepEqual(row.inject, ['@deepseek-ai/dsh-client-ui-settings-general']);
   assert.ok(graph.entries.findIndex(item => item.id === '@deepseek-ai/dsh-client-ui-settings-general') < graph.entries.indexOf(row));
   const bundle = await registry.fetchBundle(new Request(new URL(row.url, f.base))); assert.equal(bundle.status, 200);
   const registrations = []; vm.runInNewContext(await bundle.text(), { window: { __ModuleLoader__: { load: entry => registrations.push(entry) } } });
-  assert.deepEqual(registrations.map(item => item.id), ['dsh-douyin-browser-local']); assert.equal(typeof registrations[0].factory, 'function');
+  assert.deepEqual(registrations.map(item => item.id), ['dsh-douyin-browser-feiyu']); assert.equal(typeof registrations[0].factory, 'function');
 });
