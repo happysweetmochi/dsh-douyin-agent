@@ -1,5 +1,7 @@
 # DSH 原生抖音插件 1.4.6
 
+本文件描述的安装包名 `dsh-douyin-browser-local` 属于上游 [LockyBee/dsh-douyin-agent](https://github.com/LockyBee/dsh-douyin-agent)。当前分支由「肥鱼博士」维护，包名是 `dsh-douyin-browser-feiyu`，不发布到 npm，也不向上游开拉取请求。主动分享和主动私信见 [proactive-send.md](proactive-send.md)。
+
 日常入口是 DSH“设置 → 刷抖音”，通过分类设置操作，不要求在聊天中输入工具名。插件使用 DSH 已配置的主模型；独立软件使用自己的 API Key，两版共用本机人格、兴趣、每日用量、许可名单与收据。
 
 ## 安装与更新

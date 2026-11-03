@@ -1,10 +1,14 @@
 {
-  "name": "dsh-douyin-browser-local",
+  "name": "dsh-douyin-browser-feiyu",
   "version": "1.4.6",
+  "private": true,
   "type": "module",
-  "description": "DSH 原生抖音工具与独立 DeepSeek 本地助手",
+  "description": "DSH 原生抖音工具与独立 DeepSeek 本地助手（LockyBee/dsh-douyin-agent 的分支，由肥鱼博士维护，不发布到 npm）",
   "license": "MIT",
   "author": "LockyBee",
+  "contributors": [
+    "肥鱼博士"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LockyBee/dsh-douyin-agent.git"
@@ -92,6 +96,8 @@
     "task-limits.mjs",
     "tool-definitions.mjs",
     "video-forward.mjs",
+    "proactive-send.mjs",
+    "share-identity.mjs",
     "video-limits.mjs",
     "watch-mode.mjs",
     "media/index.mjs",

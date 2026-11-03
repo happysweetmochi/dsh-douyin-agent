@@ -23,7 +23,7 @@ export const DOMAIN_FILES = Object.freeze([
   'group-reply-trigger.mjs',
   'scheduled-watch.mjs', 'interaction-status.mjs', 'settings-sections.mjs', 'usage-ledger.mjs', 'watch-options.mjs', 'diagnostics.mjs', 'api-agent.mjs', 'app.mjs', 'browser-host.mjs', 'chat-agent.mjs', 'chat-browser.mjs',
   'chat-message.mjs', 'chat-service.mjs', 'core.mjs', 'message-tracker.mjs', 'memory.mjs',
-  'qq-sync.mjs', 'runtime-paths.mjs', 'tool-definitions.mjs', 'video-forward.mjs',
+  'qq-sync.mjs', 'runtime-paths.mjs', 'tool-definitions.mjs', 'video-forward.mjs', 'proactive-send.mjs', 'share-identity.mjs',
   'video-limits.mjs', 'playwright-runtime.mjs', 'receipt-baseline.mjs',
   'persona-memory.mjs', 'autonomous-watch.mjs', 'browser-launcher.mjs', 'browser-pause.mjs', 'autonomous-share.mjs', 'task-limits.mjs', 'outbound-send.mjs', 'spark-agent.mjs', 'spark-service.mjs', 'daily-report.mjs', 'autonomous-comments.mjs', 'comment-browser.mjs', 'public-comment-agent.mjs', 'watch-mode.mjs',
 ]);
